@@ -50,6 +50,7 @@ def main() -> None:
         shuffle_buffer=args.shuffle_buffer,
         seed=args.seed,
         allow_text_body_fallback=not args.strict_body_detection,
+        cache_refresh_seconds=0.0,
         hf_token=args.hf_token,
     )
     pool = QualifiedImagePool(config)

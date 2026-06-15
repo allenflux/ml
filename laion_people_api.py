@@ -61,6 +61,7 @@ class ServiceConfig:
     shuffle_buffer: int
     seed: int
     allow_text_body_fallback: bool
+    cache_refresh_seconds: float
     hf_token: str | None
 
 
@@ -77,6 +78,8 @@ class QualifiedImagePool:
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._threads: list[threading.Thread] = []
+        self._cache_refresh_thread: threading.Thread | None = None
+        self._index_signature: tuple[int, int] | None = None
         self._stats = {
             "checked": 0,
             "text_candidates": 0,
@@ -88,10 +91,19 @@ class QualifiedImagePool:
             "last_error": "",
             "last_stage": "not_started",
             "last_sample_at": 0.0,
+            "last_cache_reload_at": 0.0,
         }
 
     def load_cache(self) -> None:
         self._load_existing()
+
+    def start_cache_refresh(self) -> None:
+        self._load_existing()
+        if self._cache_refresh_thread is not None:
+            return
+        thread = threading.Thread(target=self._cache_refresh_loop, daemon=True)
+        thread.start()
+        self._cache_refresh_thread = thread
 
     def start(self) -> None:
         if self._threads:
@@ -257,6 +269,24 @@ class QualifiedImagePool:
         with self.index_path.open("a", encoding="utf-8") as file:
             file.write(json.dumps(asdict(item), ensure_ascii=False) + "\n")
 
+    def _cache_refresh_loop(self) -> None:
+        interval = max(1.0, self.config.cache_refresh_seconds)
+        while not self._stop_event.is_set():
+            try:
+                current_signature = self._get_index_signature()
+                if current_signature != self._index_signature:
+                    self._load_existing()
+            except Exception as exc:
+                with self._lock:
+                    self._stats["last_error"] = f"cache refresh failed: {exc}"
+            time.sleep(interval)
+
+    def _get_index_signature(self) -> tuple[int, int] | None:
+        if not self.index_path.exists():
+            return None
+        stat = self.index_path.stat()
+        return int(stat.st_mtime_ns), int(stat.st_size)
+
     def _load_existing(self) -> None:
         if not self.index_path.exists():
             return
@@ -267,6 +297,8 @@ class QualifiedImagePool:
             self._items = items[-self.config.max_cache :]
             self._seen_urls.update(item.source_url for item in self._items)
             self._stats["accepted"] = len(self._items)
+            self._stats["last_cache_reload_at"] = time.time()
+            self._index_signature = self._get_index_signature()
 
 
 def create_app(config: ServiceConfig) -> FastAPI:
@@ -276,7 +308,7 @@ def create_app(config: ServiceConfig) -> FastAPI:
     @app.on_event("startup")
     def startup() -> None:
         if config.mode == "serve":
-            pool.load_cache()
+            pool.start_cache_refresh()
         else:
             pool.start()
 
@@ -338,6 +370,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--shuffle-buffer", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--strict-body-detection", action="store_true")
+    parser.add_argument("--cache-refresh-seconds", type=float, default=5.0)
     parser.add_argument("--hf-token", type=str, default=os.environ.get("HF_TOKEN"))
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
@@ -363,6 +396,7 @@ def main() -> None:
         shuffle_buffer=args.shuffle_buffer,
         seed=args.seed,
         allow_text_body_fallback=not args.strict_body_detection,
+        cache_refresh_seconds=args.cache_refresh_seconds,
         hf_token=args.hf_token,
     )
     app = create_app(config)
