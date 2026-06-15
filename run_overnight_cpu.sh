@@ -1,8 +1,8 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-python train.py \
+.venv/bin/python train.py \
   --device cpu \
   --dataset imagefolder \
   --data-root my_images/train \
