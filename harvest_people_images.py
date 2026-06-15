@@ -20,6 +20,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-height", type=int, default=256)
     parser.add_argument("--min-person-height-ratio", type=float, default=0.25)
     parser.add_argument("--max-detection-side", type=int, default=640)
+    parser.add_argument("--detection-mode", type=str, default="face-only", choices=("face-only", "face-and-body"))
+    parser.add_argument("--max-image-bytes", type=int, default=5_000_000)
     parser.add_argument("--shuffle-buffer", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--strict-body-detection", action="store_true")
@@ -43,6 +45,8 @@ def main() -> None:
         min_height=args.min_height,
         min_person_height_ratio=args.min_person_height_ratio,
         max_detection_side=args.max_detection_side,
+        detection_mode=args.detection_mode,
+        max_image_bytes=args.max_image_bytes,
         shuffle_buffer=args.shuffle_buffer,
         seed=args.seed,
         allow_text_body_fallback=not args.strict_body_detection,

@@ -163,7 +163,12 @@ def build_session() -> requests.Session:
     return session
 
 
-def download_image(session: requests.Session, url: str, timeout: float) -> tuple[Image.Image | None, bytes | None, str]:
+def download_image(
+    session: requests.Session,
+    url: str,
+    timeout: float,
+    max_bytes: int = 5_000_000,
+) -> tuple[Image.Image | None, bytes | None, str]:
     try:
         response = session.get(url, timeout=timeout, stream=True, allow_redirects=True)
         response.raise_for_status()
@@ -171,7 +176,21 @@ def download_image(session: requests.Session, url: str, timeout: float) -> tuple
         if "image" not in content_type.lower():
             return None, None, f"non-image content-type: {content_type or 'unknown'}"
 
-        content = response.content
+        content_length = response.headers.get("Content-Length")
+        if content_length and int(content_length) > max_bytes:
+            return None, None, f"image too large: {content_length} bytes"
+
+        chunks: list[bytes] = []
+        total_bytes = 0
+        for chunk in response.iter_content(chunk_size=64 * 1024):
+            if not chunk:
+                continue
+            total_bytes += len(chunk)
+            if total_bytes > max_bytes:
+                return None, None, f"image too large: exceeded {max_bytes} bytes"
+            chunks.append(chunk)
+
+        content = b"".join(chunks)
         image = Image.open(BytesIO(content))
         image.load()
         return image, content, ""

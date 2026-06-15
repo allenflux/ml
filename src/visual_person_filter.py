@@ -36,6 +36,7 @@ class VisualPersonFilter:
         require_face: bool = True,
         allow_text_body_fallback: bool = True,
         max_detection_side: int = 640,
+        detection_mode: str = "face-only",
     ) -> None:
         if cv2 is None:
             raise RuntimeError(
@@ -47,11 +48,17 @@ class VisualPersonFilter:
         self.require_face = require_face
         self.allow_text_body_fallback = allow_text_body_fallback
         self.max_detection_side = max_detection_side
+        self.detection_mode = detection_mode
 
         cv2.setNumThreads(1)
 
-        self.hog = cv2.HOGDescriptor()
-        self.hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+        if detection_mode not in {"face-only", "face-and-body"}:
+            raise ValueError("detection_mode must be one of: face-only, face-and-body")
+
+        self.hog = None
+        if detection_mode == "face-and-body":
+            self.hog = cv2.HOGDescriptor()
+            self.hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
 
         cascade_path = Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"
         self.face_cascade = cv2.CascadeClassifier(str(cascade_path))
@@ -76,14 +83,16 @@ class VisualPersonFilter:
         )
         face_boxes = [_scale_rect(tuple(map(int, rect)), scale_x, scale_y) for rect in face_boxes_small]
 
-        person_boxes_small, _ = self.hog.detectMultiScale(
-            frame,
-            winStride=(8, 8),
-            padding=(16, 16),
-            scale=1.05,
-        )
-        person_boxes = [_scale_rect(tuple(map(int, rect)), scale_x, scale_y) for rect in person_boxes_small]
-        person_boxes = _suppress_nested_boxes(person_boxes)
+        person_boxes: list[Rect] = []
+        if self.hog is not None:
+            person_boxes_small, _ = self.hog.detectMultiScale(
+                frame,
+                winStride=(8, 8),
+                padding=(16, 16),
+                scale=1.05,
+            )
+            person_boxes = [_scale_rect(tuple(map(int, rect)), scale_x, scale_y) for rect in person_boxes_small]
+            person_boxes = _suppress_nested_boxes(person_boxes)
 
         best_ratio = max((box[3] / height for box in person_boxes), default=0.0)
         has_face = len(face_boxes) > 0
