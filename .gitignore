@@ -1,0 +1,12 @@
+.venv/
+.idea/
+__pycache__/
+*.py[cod]
+
+outputs/
+
+data/*
+!data/logs/
+!data/logs/train.csv
+
+.DS_Store

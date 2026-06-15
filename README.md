@@ -236,15 +236,17 @@ python filter_laion_people.py --max-samples 5000 --max-keep 200 --download-image
 - `laion_people_api.py`
 - `src/visual_person_filter.py`
 - `run_laion_people_api.sh`
+- `harvest_people_images.py`
+- `run_harvest_people_images.sh`
+- `run_people_cache_api.sh`
 
 它的流程是：
 
-- 后台持续随机扫描 `LAION`
-- 先用文本筛候选
+- `harvest` 离线持续扫描 `LAION`
 - 下载图片并确认 URL 可用
 - 用 OpenCV 做人脸检测和人体检测
 - 通过后保存到本地缓存
-- API 随机返回一个本地可下载链接
+- `serve` API 只从本地缓存随机返回图片链接
 
 安装依赖：
 
@@ -252,28 +254,28 @@ python filter_laion_people.py --max-samples 5000 --max-keep 200 --download-image
 pip install -r requirements.txt
 ```
 
-启动服务：
+推荐流程是先攒图：
 
 ```bash
-./run_laion_people_api.sh
+HF_TOKEN=你的_token ./run_harvest_people_images.sh
 ```
 
-或者手动启动：
+缓存攒到一些之后，再启动只读缓存的 API：
 
 ```bash
-python laion_people_api.py --host 127.0.0.1 --port 8000 --workers 8 --max-cache 1000 --shuffle-buffer 64 --min-width 256 --min-height 256 --min-person-height-ratio 0.25
+./run_people_cache_api.sh
 ```
 
 如果 Hugging Face 提示 `laion/laion2B-en` 是 gated dataset，需要先提供 token：
 
 ```bash
-HF_TOKEN=你的_token ./run_laion_people_api.sh
+HF_TOKEN=你的_token ./run_harvest_people_images.sh
 ```
 
-或者：
+如果你还是想边扫边提供 API，可以用混合模式：
 
 ```bash
-python laion_people_api.py --hf-token 你的_token
+HF_TOKEN=你的_token ./run_laion_people_api.sh
 ```
 
 查看后台是否已经缓存到图：
@@ -296,10 +298,15 @@ curl "http://127.0.0.1:8000/api/images?count=10&timeout_seconds=10"
 
 返回里的 `download_url` 是本服务的本地图片链接，已经下载并通过检测，所以比直接返回 LAION 原始 URL 更可用。
 
-如果 `/health` 里 `cached=0` 且 `checked=0`，通常是流式 shuffle 还在预热。可以进一步调小随机缓冲：
+缓存文件默认在：
+
+- `outputs/laion_people_api/accepted.jsonl`
+- `outputs/laion_people_api/images/`
+
+如果 `/health` 里 `cached=0` 且 `checked=0`，通常是数据源还没吐出第一条样本。默认脚本已经关闭流式 shuffle 来避免预热太久。你也可以手动确认：
 
 ```bash
-python laion_people_api.py --shuffle-buffer 64
+python laion_people_api.py --shuffle-buffer 0
 ```
 
 如果你想更严格，只接受 OpenCV 人体检测通过的图：
