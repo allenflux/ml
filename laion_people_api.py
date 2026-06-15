@@ -55,6 +55,7 @@ class ServiceConfig:
     min_width: int
     min_height: int
     min_person_height_ratio: float
+    max_detection_side: int
     shuffle_buffer: int
     seed: int
     allow_text_body_fallback: bool
@@ -142,6 +143,7 @@ class QualifiedImagePool:
         detector = VisualPersonFilter(
             min_person_height_ratio=self.config.min_person_height_ratio,
             allow_text_body_fallback=self.config.allow_text_body_fallback,
+            max_detection_side=self.config.max_detection_side,
         )
         while not self._stop_event.is_set():
             try:
@@ -322,6 +324,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-width", type=int, default=384)
     parser.add_argument("--min-height", type=int, default=384)
     parser.add_argument("--min-person-height-ratio", type=float, default=0.42)
+    parser.add_argument("--max-detection-side", type=int, default=640)
     parser.add_argument("--shuffle-buffer", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--strict-body-detection", action="store_true")
@@ -344,6 +347,7 @@ def main() -> None:
         min_width=args.min_width,
         min_height=args.min_height,
         min_person_height_ratio=args.min_person_height_ratio,
+        max_detection_side=args.max_detection_side,
         shuffle_buffer=args.shuffle_buffer,
         seed=args.seed,
         allow_text_body_fallback=not args.strict_body_detection,

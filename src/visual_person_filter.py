@@ -35,6 +35,7 @@ class VisualPersonFilter:
         min_person_height_ratio: float = 0.45,
         require_face: bool = True,
         allow_text_body_fallback: bool = True,
+        max_detection_side: int = 640,
     ) -> None:
         if cv2 is None:
             raise RuntimeError(
@@ -45,6 +46,9 @@ class VisualPersonFilter:
         self.min_person_height_ratio = min_person_height_ratio
         self.require_face = require_face
         self.allow_text_body_fallback = allow_text_body_fallback
+        self.max_detection_side = max_detection_side
+
+        cv2.setNumThreads(1)
 
         self.hog = cv2.HOGDescriptor()
         self.hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
@@ -57,7 +61,7 @@ class VisualPersonFilter:
     def inspect(self, image: Image.Image, *, full_body_text_hint: bool) -> VisualDetectionResult:
         rgb = image.convert("RGB")
         width, height = rgb.size
-        resized = _resize_for_detection(rgb)
+        resized = _resize_for_detection(rgb, max_side=self.max_detection_side)
         scale_x = width / resized.size[0]
         scale_y = height / resized.size[1]
 
