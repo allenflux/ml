@@ -8,5 +8,7 @@ outputs/
 data/*
 !data/logs/
 !data/logs/train.csv
+!data/videos/
+!data/videos/urls.csv
 
 .DS_Store

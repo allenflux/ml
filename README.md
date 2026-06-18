@@ -316,3 +316,59 @@ python laion_people_api.py --strict-body-detection
 ```
 
 默认模式会允许“检测到脸 + caption 有全身提示”的样本通过，这样速度和出图率会更好。
+
+## 14. 随机人物视频 API
+
+视频和图片分开处理。视频采集器会从一个 URL 列表下载候选视频，限制大小和时长，抽帧检测有人脸后写入本地缓存；API 只从本地缓存随机返回视频链接。
+
+准备视频源 CSV：
+
+```csv
+video_url,text
+https://example.com/demo.mp4,a person walking
+```
+
+默认路径：
+
+```text
+data/videos/urls.csv
+```
+
+采集视频：
+
+```bash
+nohup ./run_harvest_people_videos.sh > video_harvest.log 2>&1 &
+```
+
+也可以指定 URL 文件和目标数量：
+
+```bash
+VIDEO_SOURCE_PATH=data/videos/urls.csv VIDEO_TARGET_CACHE=500 nohup ./run_harvest_people_videos.sh > video_harvest.log 2>&1 &
+```
+
+默认过滤条件：
+
+- 视频文件不超过 `100MB`
+- 时长约 `4-7` 秒
+- 抽 `5` 帧检测人脸
+- 通过后保存到 `outputs/people_video_api/videos/`
+
+启动视频 API：
+
+```bash
+nohup ./run_people_video_api.sh > video_api.log 2>&1 &
+```
+
+默认端口是 `8001`：
+
+```bash
+curl http://allenflux.tech:8001/health
+curl http://allenflux.tech:8001/api/video
+curl "http://allenflux.tech:8001/api/videos?count=5"
+```
+
+如果要换端口：
+
+```bash
+VIDEO_PORT=8011 nohup ./run_people_video_api.sh > video_api.log 2>&1 &
+```
