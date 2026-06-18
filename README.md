@@ -353,6 +353,12 @@ VIDEO_SOURCE_PATH=data/videos/urls.csv VIDEO_TARGET_CACHE=500 nohup ./run_harves
 - 抽 `5` 帧检测人脸
 - 通过后保存到 `outputs/people_video_api/videos/`
 
+也可以从 Hugging Face 视频数据集流式扫描，只要样本里有 `video_url`、`url`、`content_url` 或 `download_url` 字段：
+
+```bash
+VIDEO_DATASET=你的HF视频数据集 VIDEO_SPLIT=train nohup ./run_harvest_people_videos.sh > video_harvest.log 2>&1 &
+```
+
 启动视频 API：
 
 ```bash
@@ -371,4 +377,20 @@ curl "http://allenflux.tech:8001/api/videos?count=5"
 
 ```bash
 VIDEO_PORT=8011 nohup ./run_people_video_api.sh > video_api.log 2>&1 &
+```
+
+如果你想图片和视频放在同一个服务里，用统一服务：
+
+```bash
+nohup ./run_people_media_api.sh > media_api.log 2>&1 &
+```
+
+统一服务默认端口 `8000`，路由如下：
+
+```bash
+curl http://allenflux.tech:8000/health
+curl http://allenflux.tech:8000/api/image
+curl http://allenflux.tech:8000/api/video
+curl "http://allenflux.tech:8000/api/images?count=5"
+curl "http://allenflux.tech:8000/api/videos?count=5"
 ```

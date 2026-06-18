@@ -3,11 +3,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-import requests
+from datasets import load_dataset
 
 from filter_laion_people import build_session
 from src.video_filter import download_video, get_video_text, get_video_url, inspect_video, iter_video_source_rows
@@ -32,7 +33,11 @@ class QualifiedVideo:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Harvest short people videos into a local cache.")
-    parser.add_argument("--source-path", type=str, required=True)
+    parser.add_argument("--source-path", type=str, default="")
+    parser.add_argument("--dataset", type=str, default="")
+    parser.add_argument("--split", type=str, default="train")
+    parser.add_argument("--hf-token", type=str, default=os.environ.get("HF_TOKEN"))
+    parser.add_argument("--shuffle-buffer", type=int, default=0)
     parser.add_argument("--output-dir", type=str, default="outputs/people_video_api")
     parser.add_argument("--target-cache", type=int, default=500)
     parser.add_argument("--request-timeout", type=float, default=12.0)
@@ -70,8 +75,10 @@ def main() -> None:
     rejected_visual = 0
     started_at = time.monotonic()
 
+    source_rows = _iter_source_rows(args)
+
     with index_path.open("a", encoding="utf-8") as index_file:
-        for row in iter_video_source_rows(args.source_path):
+        for row in source_rows:
             if accepted_count >= args.target_cache:
                 break
 
@@ -140,6 +147,21 @@ def main() -> None:
                 )
 
     print(f"Done. cached={accepted_count} checked={checked} downloaded={downloaded}")
+
+
+def _iter_source_rows(args: argparse.Namespace):
+    if args.dataset:
+        dataset = load_dataset(args.dataset, split=args.split, streaming=True, token=args.hf_token)
+        if args.shuffle_buffer > 1:
+            dataset = dataset.shuffle(buffer_size=args.shuffle_buffer, seed=42)
+        for sample in dataset:
+            yield {key: str(value) for key, value in sample.items() if value is not None}
+        return
+
+    if not args.source_path:
+        raise ValueError("Provide --source-path for CSV/JSONL input or --dataset for a streaming Hugging Face dataset.")
+
+    yield from iter_video_source_rows(args.source_path)
 
 
 def _load_existing(index_path: Path, videos_dir: Path) -> list[dict[str, object]]:
